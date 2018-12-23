@@ -12,7 +12,6 @@ import (
 	"log"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -137,6 +136,9 @@ func main() {
 	languagesTable := NewTable("languages", []string{"name"})
 	languagesTable.SetUniqueCols("name")
 
+	transliterationTable := NewTable("transliteration", []string{"value", "word_id"})
+	transliterationTable.SetUniqueCols("value", "word_id")
+
 	tables = append(
 		tables,
 		wordsTable,
@@ -146,6 +148,8 @@ func main() {
 		gramTypeTable,
 		gramTypeTranslationTable,
 		translationAttributesTable,
+		translationAttributesToTranslationsTable,
+		transliterationTable,
 	)
 
 	path := flag.String("path", "", "/tmp/my.dsl")
@@ -219,6 +223,12 @@ func main() {
 			}
 			continue
 		}
+
+		translit := extractTransliteration(line)
+		if translit != "" {
+			transliterationTable.AddRow(translit, wordFromId)
+			continue
+		}
 	}
 	for _, tbl := range tables {
 		fmt.Println(tbl)
@@ -231,7 +241,7 @@ func validateBodyLine(inputLine string) error {
 		return fmt.Errorf("Line is not beginning with spaces")
 	}
 
-	expectedTags := []string{"[p]", "[trn]", "[*]"}
+	expectedTags := []string{"[p]", "[trn]", "[*]", "[t]"}
 	for _, expectedTag := range expectedTags {
 		if strings.Contains(inputLine, expectedTag) {
 			return nil
@@ -244,18 +254,14 @@ func validateBodyLine(inputLine string) error {
 	)
 }
 
-func extractIndex(inputLine string) int64 {
-	pattern := regexp.MustCompile(`^\s*\[.*?](\d*)[)|.]`)
+func extractTransliteration(inputLine string) string {
+	pattern := regexp.MustCompile(`^\s+.*\[t](.*)\[\/t]`)
 	res := pattern.FindStringSubmatch(inputLine)
 	if res != nil {
-		inputLineInt, err := strconv.ParseInt(res[1], 10, 64)
-		if err != nil {
-			return 0
-		}
-		return inputLineInt
+		return res[1]
 	}
 
-	return 0
+	return ""
 }
 func extractTranslation(inputLine string) string {
 	pattern := regexp.MustCompile(`\[trn](.*)\[/trn]`)
